@@ -1,0 +1,53 @@
+1. The Model
+Student describes their model in detail. This includes the state, actuators and update equations.
+
+Model predictive control approach solves an optimization problem based on the underlying model of the system. In this project, we have a vehicle model that describe the vehicle dynamcis.
+
+We use a 6 dimension model, that is, 6 state variables to capture the system states, which are:
+the vehicle longitudinal position x,
+the vehicle lateral position y,
+the vehicle orientation psi, 
+the vehicle speed v,
+the cross track error cte, which is the lateral deviation of the vehicle from the trajectory,
+the error orientation epsi, which is the difference of the vehicle orientation and the trajectory orientation
+all states are in the vehicle (local) coordinate, as opposed to the global coordinate used in the simulator
+
+in terms of actuators, we have 
+the longitudinal control variable a, which is the longitudinal acceleration
+the lateral control variable delta, which is the steering wheel angle
+
+together, the states and control varaibles form the system model, in the form of (discrete) state (update) equations
+ 
+x[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+y[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+psi[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+v[t+1] = v[t] + a[t] * dt
+cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+
+
+2. Timestep Length and Elapsed Duration (N & dt)
+Student discusses the reasoning behind the chosen N (timestep length) and dt (elapsed duration between timesteps) values. Additionally the student details the previous values tried.
+
+In MPC.cpp (line 9 and 10), N and dt are chosen to be 10, and 0.1, respectively. 
+
+N * dt = 1 (s) means that we try to optimize/minimize the cost function in the next 1 second in the future. The smaller the number (N*dt) is, the more aggressive we want to bring those errors (cte and epsi) back to 0. 
+
+For N, if too large, would add computational burden, and it is observed that on my computer, if N = 20 (dt = 0.05 so N*dt remains the same), the MPC yield poor control command that would quickly lead the vehicle off the track. My theory is, instead of that MPC actually "yields" poor control command when N is large, it is because the computation at each time step takes too long that it can't calculate in time the control command needed by the simulator. (I kind of proved it by doing an experiment: in scenario 1, I ran ./mpc with the simulator and made sure the vehicle could stay on the track all the time; then in scenario 2, I ran the same ./mpc, with the same controller paramters, but at the same time running some other heavy load apps on the computer, the vehicle then drove off the track quickly...)
+
+For dt, larger dt means less frequent actuation. Since MPC attempts to approximate a continues reference trajectory by means of discrete paths between actuations. Larger values of dt makes it harder to accurately approximate a continuous reference trajectory, giving rise to discretization error. 
+
+So we want keep both N and dt as small as possible while keep N*dt large enough. N = 10 and dt = 0.1 seems to meet the requirement. 
+
+
+3. Polynomial Fitting and MPC Preprocessing
+A polynomial is fitted to waypoints.
+If the student preprocesses waypoints, the vehicle state, and/or actuators prior to the MPC procedure it is described.
+
+In main.cpp, line 70, I implemented a function called global2VehicleTransform() to transform the waypoints in the global coordinate to the vehicle local coordinate. Then I fit a polynomial to the transformed waypoints in the vehicle coordinate. By doing this, the initial state of the vehicle posiiton and orientation would be put all at 0, and then state cte and epsi can be calculated in the vehicle coordinate, which is a much simpler setting. 
+
+
+4. Model Predictive Control with Latency
+The student implements Model Predictive Control that handles a 100 millisecond latency. Student provides details on how they deal with latency.
+
+To deal with the latency issue, in main.cpp line 128-130, I converted/predicted the latest (delayed 100 ms in this case) state measurement fed back from the simulator to the current time based on (part of) the vehicle model in the global coordinate and used that as the initial (global) vehicle state. 
